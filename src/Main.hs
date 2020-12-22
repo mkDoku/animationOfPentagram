@@ -21,122 +21,45 @@ import           Graphics.SvgTree                hiding (Text, height)
 
 ratio = 16/9
 
-newWidth, newHeight :: Double
-newWidth = 8
-newHeight = 8
-
 main :: IO ()
-main = reanimate $ docEnv
- $ mapA (withViewBox (-1.5, -1.5, 3.0, 3.0)) $ scene $ do
---  newSpriteSVG_ $ mkBackgroundPixel rtfdBackgroundColor
---  newSpriteSVG_ static
-  dotPath  <- newVar (QuadBezier coord1 coord1 coord1)
-  dotParam <- newVar 0
-  newSprite_ $ redDot <$> (evalBezier <$> unVar dotPath <*> unVar dotParam)
-  let moveDot a b = do
-        pos <- evalBezier <$> readVar dotPath <*> pure 1
-        writeVar dotPath $ QuadBezier pos a b
-        writeVar dotParam 0
-        tweenVar dotParam 5 $ \v -> fromToS v 1 . curveS 2
+main = reanimate 
+  $ docEnv
+  -- change viewBox (ranges) 
+  --  to 
+  --    x=[-1,5,..,1.5]
+  --    y=[-1,5,..,1.5]
+  --
+  -- use ratio to stretch result to fit the 16/9 ratio of my display
+  $ mapA (withViewBox (-1.5*ratio, -1.5, 3.0*ratio, 3.0)) 
+  $ scene 
+  $ do
+    newSpriteSVG_ (withStrokeWidth 0.001 $ mkCircle 1)
+    dotAngle  <- newVar $ coordEval 0
+    newSprite_ $ redDot <$> unVar dotAngle
+
+    let rotateDot a b = do
+        -- writeVar dotAngle $ coordEval a
+        tweenVar dotAngle 5 $ \_ t-> coordEval ( ( t*(b-a) )+a) 
         wait 1
-  wait 1
-  moveDot coord1 coord2
-  moveDot coord2 coord3
-  moveDot coord3 coord4
-  moveDot coord4 coord5
-  moveDot coord5 coord1
+    
+    rotateDot 0 72
+    rotateDot 72 144
+    rotateDot 144 216
+    rotateDot 216 288
+    rotateDot 288 360
 
-coord1 = V2 1 0
-coord2 = V2 x y
-  where (x, y) = fromPolarU 72
-coord3 = V2 x y
-  where (x, y) = fromPolarU 144
-coord4 = V2 x y
-  where (x, y) = fromPolarU 216
-coord5 = V2 x y
-  where (x, y) = fromPolarU 288
+coordEval val = V2 x y
+  where (x, y) = fromPolarU val
 
---main :: IO ()
---main = reanimate $ mapA squareViewBox $ scene $ do
---  newSpriteSVG_ $ mkBackgroundPixel rtfdBackgroundColor
---  newSpriteSVG_ static
---  dotPath <- newVar (QuadBezier (V2 0 0) (V2 0 0) (V2 0 0))
---  dotParam <- newVar 0
---  newSprite_ $ redDot <$> (evalBezier <$> unVar dotPath <*> unVar dotParam)
-
---  let moveDot a b = do
---      pos <- evalBezier <$> readVar dotPath <*> pure 1
---      writeVar dotPath $ QuadBezier pos a b
---      writeVar dotParam 0
---      tweenVar dotParam 5 $ \v -> fromToS v 1 . curveS 2
---      wait 1
---
---  moveDot (V2 0 1)     (V2 2 1)
---  moveDot (V2 (-1) 0)  (V2 (-1) 1.5)
---  moveDot (V2 0 0)   (V2 (-2) (-3))
---  moveDot (V2 0 0)   (V2 2.5 (-1))
---  moveDot (V2 3 1.5) (V2 1.5 1)
---  moveDot (V2 0 0)   (V2 0 0)
-
--- reanimate
---  $ docEnv
--- $ mapA ( withViewBox (-1.5*ratio)
---                     , -1.5
---                     , (3*ratio)
---                     , 3 )
-
---squareViewBox :: SVG -> SVG
---squareViewBox = withViewBox (-4, -4, 8, 8)
---
---static :: SVG
---static = mkGroup
---  [ grid
---  , withStrokeColor "grey" $ mkLine (-screenWidth, 0) (screenWidth, 0)
---  , withStrokeColor "grey" $ mkLine (0, -screenHeight) (0, screenHeight)
---  , curlyBracket (V2 (-newWidth / 2 + defaultStrokeWidth) (newHeight / 2))
---                 (V2 (newWidth / 2 - defaultStrokeWidth) (newHeight / 2))
---                 1
---  , translate 0 2.5 $ outlinedText "8 units"
---  , curlyBracket (V2 (-newWidth / 2) (-newHeight / 2 + defaultStrokeWidth))
---                 (V2 (-newWidth / 2) (newHeight / 2 - defaultStrokeWidth))
---                 1
---  , translate (-2.5) 0 $ rotate 90 $ outlinedText "8 units"
---  ]
---
---curlyBracket :: RPoint -> RPoint -> Double -> SVG
---curlyBracket from to height =
---  withStrokeColor "black"
---    $ withFillOpacity 0
---    $ withStrokeWidth (defaultStrokeWidth * 2)
---    $ mkPath
---        [ MoveTo OriginAbsolute [from]
---        , CurveTo OriginAbsolute [(from + outwards, halfway, halfway + outwards)]
---        , CurveTo OriginAbsolute [(halfway, to + outwards, to)]
---        ]
--- where
---  outwards = case normalize (from - to) ^* height of
---    V2 x y -> V2 (-y) x
---  halfway = lerp 0.5 from to
---
---grid :: SVG
---grid = withStrokeColor "grey" $ withStrokeWidth (defaultStrokeWidth * 0.5) $ mkGroup
---  [ mkGroup
---    [ translate
---          0
---          (i / screenHeight * screenHeight - screenHeight / 2 - screenHeight / 18)
---        $ mkLine (-screenWidth, 0) (screenWidth, 0)
---    | i <- [0 .. screenHeight]
---    ]
---  , mkGroup
---    [ translate (i / screenWidth * screenWidth - screenWidth / 2) 0
---        $ mkLine (0, -screenHeight) (0, screenHeight)
---    | i <- [0 .. screenWidth]
---    ]
---  ]
+coord1 = coordEval 0
+coord2 = coordEval 72
+coord3 = coordEval 144
+coord4 = coordEval 216
+coord5 = coordEval 288
 
 redDot :: V2 Double -> SVG
 redDot (V2 x y) = translate x y $ mkGroup
-  [ translate 0 (-0.5) $ scale 0.2 $ outlinedText $ T.pack $ printf "%.3f,%.3f" x y
+  [ translate 0 0.2 $ scale 0.2 $ outlinedText $ T.pack $ printf "%.1f,%.1f" x y
   , withFillColor "red" $ mkCircle 0.01
   ]
 
