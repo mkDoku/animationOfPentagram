@@ -22,31 +22,37 @@ import           Graphics.SvgTree                hiding (Text, height)
 ratio = 16/9
 
 main :: IO ()
-main = reanimate 
+main = reanimate
   $ docEnv
-  -- change viewBox (ranges) 
-  --  to 
+  -- change viewBox (ranges)
+  --  to
   --    x=[-1,5,..,1.5]
   --    y=[-1,5,..,1.5]
   --
   -- use ratio to stretch result to fit the 16/9 ratio of my display
-  $ mapA (withViewBox (-1.5*ratio, -1.5, 3.0*ratio, 3.0)) 
-  $ scene 
+  $ mapA (withViewBox (-1.5*ratio, -1.5, 3.0*ratio, 3.0))
+  $ scene
   $ do
-    newSpriteSVG_ (withStrokeWidth 0.001 $ mkCircle 1)
+    newSpriteSVG_ $ mkBackgroundPixel rtfdBackgroundColor
+    newSpriteSVG_ (withStrokeWidth 0.01 $ withStrokeColor "blue" $ mkCircle 1)
     dotAngle  <- newVar $ coordEval 0
     newSprite_ $ redDot <$> unVar dotAngle
+    wait 1
 
     let rotateDot a b = do
         -- writeVar dotAngle $ coordEval a
-        tweenVar dotAngle 5 $ \_ t-> coordEval ( ( t*(b-a) )+a) 
+        tweenVar dotAngle 5 $ \_ t-> coordEval ( ( t*(b-a) )+a)
+        newDot <- newVar $ coordEval b
+        newSprite_ $ redDot <$> unVar newDot
         wait 1
-    
+
     rotateDot 0 72
     rotateDot 72 144
     rotateDot 144 216
     rotateDot 216 288
     rotateDot 288 360
+
+
 
 coordEval val = V2 x y
   where (x, y) = fromPolarU val
@@ -59,16 +65,15 @@ coord5 = coordEval 288
 
 redDot :: V2 Double -> SVG
 redDot (V2 x y) = translate x y $ mkGroup
-  [ translate 0 0.2 $ scale 0.2 $ outlinedText $ T.pack $ printf "%.1f,%.1f" x y
-  , withFillColor "red" $ mkCircle 0.01
+  [ translate 0 0.2 $ scale 0.15 $ outlinedText $ T.pack $ printf "%.1f,%.1f" x y
+  , withStrokeWidth 0.01 $ withFillOpacity 1 $ withStrokeColor "blue" $ withFillColor "red" $ mkCircle 0.03
   ]
 
 outlinedText :: Text -> SVG
 outlinedText txt = mkGroup
   [ center
-  $ withStrokeColorPixel rtfdBackgroundColor
-  $ withStrokeWidth (defaultStrokeWidth * 8)
-  $ withFillOpacity 0
+   $ withFillColor "black"
+   $ withFillOpacity 1.0
   $ latex txt
   , center $ latex txt
   ]
