@@ -47,12 +47,15 @@ main = reanimate
     
     -- Create dot, line and text for constant angle of 0
     newSpriteSVG_ $ angleLine $ coordEval 0
-    newSpriteSVG_ $ redDot $ coordEval 0
+   -- newSpriteSVG_ $ mkDot "black" $ coordEval 0
+   -- newSpriteSVG_ $ coordText $ coordEval 0
     
     -- Create dot, line and text for variable angle
     newSprite_ $ angleLine . coordEval <$> unVar dotAngle
-    newSprite_ $ redDot . coordEval <$> unVar dotAngle
+    redDot <- newSprite $ mkDot "red" . coordEval <$> unVar dotAngle
+    spriteZ redDot 1
     newSprite_ $ angleText <$> unVar dotAngle
+    newSprite_ $ coordText . coordEval <$> unVar dotAngle
 
 --    newSprite_ $ undefined . coordEval <$> unVar dotAngle
 
@@ -67,14 +70,23 @@ main = reanimate
         newSpriteA' SyncFreeze $ dymCircle a 0 (72/360)
         
         newDot <- newVar $ coordEval b
-        newSprite_ $ redDot <$> unVar newDot
+        newSprite_ $ mkDot "black" <$> unVar newDot
+        newSprite_ $ coordText <$> unVar newDot
+        
         wait 1
 
     rotateDot 0 72
     rotateDot 72 144
     rotateDot 144 216
---    rotateDot 216 288
---    rotateDot 288 360
+    rotateDot 216 288
+    -- destroySprite dymCoordText
+    rotateDot 288 360
+    destroySprite redDot
+    wait 2
+
+data LatexTable = LatexTable [LatexEntry]
+
+data LatexEntry = LatexEntry Double (Double, Double)
 
 -- dymCircle :: Double -> (Frame s Double) -> Animation
 dymCircle r t1 t2 = signalA (fromToS t1 t2) $ rotatedCircle r 0.4 5.0
@@ -95,11 +107,12 @@ rotatedCircle r size dur =
 coordEval val = V2 x y
   where (x, y) = fromPolarU val
 
-redDot :: V2 Double -> SVG
-redDot (V2 x y) = translate x y $ mkGroup
-  [ translate 0 0.2 $ scale 0.15 $ outlinedText $ T.pack $ printf "%.1f,%.1f" x y
-  , withStrokeWidth 0.01 $ withFillOpacity 1 $ withStrokeColor "blue" $ withFillColor "red" $ mkCircle 0.03
-  ]
+mkDot :: String -> V2 Double -> SVG
+mkDot color (V2 x y) = translate x y 
+  $   withStrokeWidth 0.01 $ withFillOpacity 1 $ withStrokeColor "blue" $ withFillColor color $ mkCircle 0.03
+
+coordText (V2 _ 360) = outlinedText $ T.pack $ printf ""
+coordText (V2 x y) = translate (x*1.5) (y*1.3) $ center $ scale 0.15 $ outlinedText $ T.pack $ printf "(%.3f,%.3f)" x y
 
 angleLine :: V2 Double -> SVG
 angleLine (V2 x y) = translate x y $ mkGroup
