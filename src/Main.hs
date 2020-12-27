@@ -22,7 +22,7 @@ import           Graphics.SvgTree                hiding (Text, height)
 
 ratio = 16/9
 
-xmin = 2.0
+xmin = 1.5
 ymin = 2.0
 
 main :: IO ()
@@ -34,21 +34,31 @@ main = reanimate
   --    y=[-1,5,..,1.5]
   --
   -- use ratio to stretch result to fit the 16/9 ratio of my display
-  $ mapA (withViewBox (-xmin*ratio, -ymin, xmin*2*ratio, ymin*2))
-  $ scene
-  $ do
+  $ mapA (withViewBox (-xmin*ratio, -ymin, 4.5*ratio, ymin*2))
+  $ chainT seqA 
+    [ sceneOne
+    , sceneTwo
+    ]
+
+
+sceneOne :: Animation
+sceneOne = scene $ do
     newSpriteSVG_ $ mkBackgroundPixel rtfdBackgroundColor
     
     -- Create unit circle (r = 1.0)
     newSpriteSVG_ (withStrokeWidth 0.01 $ withStrokeColor "blue" $ mkCircle 1)
-    
+
+    -- create variable for content of table
+    currentTableText <- newVar  ""
+
+    -- create table (header) with empty 'currentTableText' variable
+    newSprite_ $ mkTableSVG <$> unVar currentTableText
+
     -- Create variable for angle in polar coordinates
     dotAngle  <- newVar 0
     
     -- Create dot, line and text for constant angle of 0
     newSpriteSVG_ $ angleLine $ coordEval 0
-   -- newSpriteSVG_ $ mkDot "black" $ coordEval 0
-   -- newSpriteSVG_ $ coordText $ coordEval 0
     
     -- Create dot, line and text for variable angle
     newSprite_ $ angleLine . coordEval <$> unVar dotAngle
@@ -56,9 +66,7 @@ main = reanimate
     spriteZ redDot 1
     newSprite_ $ angleText <$> unVar dotAngle
     newSprite_ $ coordText . coordEval <$> unVar dotAngle
-
---    newSprite_ $ undefined . coordEval <$> unVar dotAngle
-
+    
     wait 1
 
     let rotateDot a b = do
@@ -73,58 +81,98 @@ main = reanimate
         newSprite_ $ mkDot "black" <$> unVar newDot
         newSprite_ $ coordText <$> unVar newDot
         
+        -- modify content of table by adding a new entry line to the table
+        modifyVar currentTableText (++ coordToTableEntry b)
+        
         wait 1
 
     rotateDot 0 72
     rotateDot 72 144
     rotateDot 144 216
     rotateDot 216 288
-    -- destroySprite dymCoordText
     rotateDot 288 360
     destroySprite redDot
     wait 2
 
-data LatexTable = LatexTable [LatexEntry]
+sceneTwo :: Animation
+sceneTwo = scene $ do 
+  wait 1
+ 
 
-data LatexEntry = LatexEntry Double (Double, Double)
+mkTableSVG :: String -> SVG
+mkTableSVG = translate 2.5 1.0 
+  . withFillColor "black"
+  . withFillOpacity 1.0
+  . scale 0.15 
+  . latex 
+  . T.pack 
+  . tableHeaderAnd   
 
--- dymCircle :: Double -> (Frame s Double) -> Animation
+tableHeaderAnd :: String -> String
+tableHeaderAnd x = 
+  concat 
+   [
+     "\\begin{tabular}{r|r|r}\n"
+   , "$\\phantom{0}\\varphi$"
+   , "&"
+   , "$x=\\sin(\\varphi)$"
+   , "&"
+   , "$y = \\cos(\\varphi)$"
+   , "\\\\"
+   , "\\hline" 
+   , x 
+   , "\\end{tabular}"
+   ]
+
+coordToTableEntry :: Double -> String
+coordToTableEntry phi = printf "%12.0f\\degree & %12.6f\\ldots & %12.6f\\ldots\\\\" phi x y   
+  where (V2 x y) = coordEval phi
+
+dymCircle :: Double -> Double -> Double -> Animation
 dymCircle r t1 t2 = signalA (fromToS t1 t2) $ rotatedCircle r 0.4 5.0
 
 rotatedCircle :: Double -> Double -> Time -> Animation
 rotatedCircle r size dur =
   mkAnimation dur
---    staticFrame 3
   $ \t ->
     partialSvg t
     $ pathify
-  --    $ scaleToHeight (customScaling * 1.05)
-      $ withStrokeWidth 0.01
-      $ rotate r
-      $ flipXAxis
-      $ mkCircle size
+    $ withStrokeWidth 0.01
+    $ rotate r
+    $ flipXAxis
+    $ mkCircle size
 
+coordEval :: Double -> V2 Double
 coordEval val = V2 x y
   where (x, y) = fromPolarU val
 
 mkDot :: String -> V2 Double -> SVG
 mkDot color (V2 x y) = translate x y 
-  $   withStrokeWidth 0.01 $ withFillOpacity 1 $ withStrokeColor "blue" $ withFillColor color $ mkCircle 0.03
+  $ withStrokeWidth 0.01 
+  $ withFillOpacity 1 
+  $ withStrokeColor "blue" 
+  $ withFillColor color 
+  $ mkCircle 0.03
 
-coordText (V2 _ 360) = outlinedText $ T.pack $ printf ""
-coordText (V2 x y) = translate (x*1.5) (y*1.3) $ center $ scale 0.15 $ outlinedText $ T.pack $ printf "(%.3f,%.3f)" x y
+coordText :: V2 Double -> SVG
+coordText (V2 x y) = translate (x*1.8) (y*1.4) 
+  $ center 
+  $ scale 0.15 
+  $ outlinedText 
+  $ T.pack 
+  $ printf "(%.3f\\ldots,%.3f\\ldots)" x y
 
 angleLine :: V2 Double -> SVG
-angleLine (V2 x y) = translate x y $ mkGroup
-  [ withStrokeWidth 0.01 $ mkLine (0,0) (-x,-y)
---  , translate (-x*0.75) (-y*0.75) $ withStrokeWidth 0.01 $ mkCircle 0.01 
-  ]
+angleLine (V2 x y) = translate x y 
+  $ withStrokeWidth 0.01 
+  $ mkLine (0,0) (-x,-y)
+
 outlinedText :: Text -> SVG
 outlinedText txt = mkGroup
   [ center
-   $ withFillColor "black"
-   $ withFillOpacity 1.0
-  $ latex txt
+    $ withFillColor "black"
+    $ withFillOpacity 1.0
+    $ latex txt
   , center $ latex txt
   ]
 
@@ -136,20 +184,6 @@ angleText angle = translate 0.2 0.1 $ scale 0.15
   $ latex 
   $ T.pack
   $ printf "%3.0f\\degree" angle
-
-
-rotatedUnitCircle :: Double -> Animation
-rotatedUnitCircle r =
-  mkAnimation 3
---    staticFrame 3
-  $ \t ->
-    partialSvg t
-    $ pathify
-  --    $ scaleToHeight (customScaling * 1.05)
-      $ withStrokeWidth 0.01
-      $ rotate r
-      $ flipXAxis
-      $ mkCircle 1
 
 fromDegrees :: Floating a => a -> a
 fromDegrees deg = deg * pi / 180
