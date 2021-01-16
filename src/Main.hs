@@ -8,22 +8,29 @@ import           Reanimate.Builtin.Documentation
 import           Reanimate.Transition
 import Reanimate.Animation ( Sync(..) )
 
-import           Geom2D.CubicBezier.Linear
-import           Linear.Metric
 import           Linear.V2
-import           Linear.Vector
 
 import           Data.Text                       (Text)
 import qualified Data.Text                       as T
 import           Text.Printf
 
-import           Graphics.SvgTree                hiding (Text, height)
+-- layout variables
+textScale :: Double
+textScale = 0.15
 
+globalStrokeWidth :: Double
+globalStrokeWidth = 0.01
 
+ratio :: Double
 ratio = 16/9
 
+xmin :: Double
 xmin = 1.5
+
+ymin :: Double
 ymin = 2.0
+
+-- END layout variables
 
 main :: IO ()
 main = reanimate
@@ -39,7 +46,6 @@ main = reanimate
     [
       sceneOne
     , sceneTwo
---     sceneTwo
     ]
 
 
@@ -48,13 +54,13 @@ sceneOne = scene $ do
     newSpriteSVG_ $ mkBackgroundPixel rtfdBackgroundColor
 
     -- Create unit circle (r = 1.0)
-    newSpriteSVG_ (withStrokeWidth 0.01 $ withStrokeColor "blue" $ mkCircle 1)
+    newSpriteSVG_ (withStrokeWidth globalStrokeWidth $ withStrokeColor "blue" $ mkCircle 1)
 
     -- create variable for content of table
     currentTableText <- newVar  ""
 
     -- create table (header) with empty 'currentTableText' variable
-    newSprite_ $ mkTableSVG <$> unVar currentTableText
+    newSprite_ $ mkTableDymText <$> unVar currentTableText
 
     -- Create variable for angle in polar coordinates
     dotAngle  <- newVar 0
@@ -77,6 +83,8 @@ sceneOne = scene $ do
         fork $ tweenVar dotAngle 5 $ \_ t-> t*(b-a)+a
         -- newSpriteA and SyncStretch would stretch the circle to the
         -- life time of the whole scene
+        --
+        -- (72/360) to draw 1/5 of the circle along the way
         _ <- newSpriteA' SyncFreeze $ dymCircle a 0 (72/360)
 
         newDot <- newVar $ coordEval b
@@ -121,7 +129,8 @@ sceneTwo = scene $ do
     wait 2
 
     -- draw pentagram as animation
-    pentagramA <- newSpriteA' SyncFreeze  bla
+    let timePenta = 5
+    pentagramA <- newSpriteA' SyncFreeze (drawPentagram timePenta)
 
     -- this is just a hot fix!
     -- destroy the pentagram animation and draw a
@@ -130,7 +139,7 @@ sceneTwo = scene $ do
     --
     -- To-do/elegant solution: initialize pentagramA with rotate + unVar dymAngle
     fork $ destroySprite pentagramA
-    let pentagramSVG = frameAt 5 bla
+    let pentagramSVG = frameAt timePenta (drawPentagram timePenta)
     newSprite_ $ flip rotate pentagramSVG <$> unVar dymAngle
 
     -- for nicer transition add pause/wait
@@ -149,38 +158,54 @@ sceneTwo = scene $ do
     -- wait some time to be able to digest the final result :)
     wait 5
 
--- bla `seqA` bla2 2 `andThen` (pause 2)
-
-bla = setDuration customDuration $
-  animate $ \t ->
-  partialSvg t $ pathify $ mkLinePathClosed anis
+drawPentagram :: Double -> Animation
+drawPentagram time =
+    setDuration time
+  $ animate
+  $ \t -> partialSvg t
+  $ pathify
+  $ withStrokeWidth globalStrokeWidth
+  $ mkLinePathClosed anis
   where
-    anis = transformCoord . coordEval <$> [ 0, 144, 288, 72, 216]
+    anis           = transformCoord . coordEval <$> [0, 144, 288, 72, 216]
+    transformCoord = \(V2 x y) -> (x,y)
 
-bla2 x = setDuration x $
-       animate $ \t -> rotate (90*t) $ frameAt customDuration bla
-
-transformCoord (V2 x y) = (x,y)
-
-customDuration = 5
-
-animatePart coord1 coord2 = setDuration customDuration $
-  animate $ \t ->
-  partialSvg t $ pathify $ mkLine coord1 coord2
-
-
-
-mkCompleteTable :: Double -> SVG
-mkCompleteTable = translate 2.5 0.0
+tableLayout :: SVG -> SVG
+tableLayout = translate 2.5 0.0
   . withFillColor "black"
   . withFillOpacity 1.0
-  . scale 0.15
+  . scale textScale
+
+mkCompleteTable :: Double -> SVG
+mkCompleteTable =
+    tableLayout
   . latex
   . T.pack
   . tableWithAngle
 
+mkTableDymText :: String -> SVG
+mkTableDymText =
+    tableLayout
+  . latex
+  . T.pack
+  . tableHeaderAnd
+
+tableWithAngle :: Double -> String
 tableWithAngle phi =
+   tableHeaderAnd $
    concat
+   [
+     coordToTableEntry (phi + 0)
+   , coordToTableEntry (phi + 72)
+   , coordToTableEntry (phi + 144)
+   , coordToTableEntry (phi + 216)
+   , coordToTableEntry (phi + 288)
+   ]
+
+
+tableHeaderAnd :: String -> String
+tableHeaderAnd x =
+  concat
    [
      "\\begin{tabular}{r|r|r}\n"
    , "$\\phantom{0}\\varphi$"
@@ -190,43 +215,12 @@ tableWithAngle phi =
    , "$y = \\cos(\\varphi)$"
    , "\\\\"
    , "\\hline"
-   , coordToTableEntry (phi + 0)
-   , coordToTableEntry (phi + 72)
-   , coordToTableEntry (phi + 144)
-   , coordToTableEntry (phi + 216)
-   , coordToTableEntry (phi + 288)
-   , "\\end{tabular}"
-   ]
-
-
-
-mkTableSVG :: String -> SVG
-mkTableSVG = translate 2.5 0.0 
-  . withFillColor "black"
-  . withFillOpacity 1.0
-  . scale 0.15 
-  . latex 
-  . T.pack 
-  . tableHeaderAnd   
-
-tableHeaderAnd :: String -> String
-tableHeaderAnd x = 
-  concat 
-   [
-     "\\begin{tabular}{r|r|r}\n"
-   , "$\\phantom{0}\\varphi$"
-   , "&"
-   , "$x=\\sin(\\varphi)$"
-   , "&"
-   , "$y = \\cos(\\varphi)$"
-   , "\\\\"
-   , "\\hline" 
-   , x 
+   , x
    , "\\end{tabular}"
    ]
 
 coordToTableEntry :: Double -> String
-coordToTableEntry phi = printf "%12.0f\\degree & %12.6f\\ldots & %12.6f\\ldots\\\\" phi x y   
+coordToTableEntry phi = printf "%12.0f\\degree & %12.6f\\ldots & %12.6f\\ldots\\\\" phi x y
   where (V2 x y) = coordEval phi
 
 dymCircle :: Double -> Double -> Double -> Animation
@@ -238,7 +232,7 @@ rotatedCircle r size dur =
   $ \t ->
     partialSvg t
     $ pathify
-    $ withStrokeWidth 0.01
+    $ withStrokeWidth globalStrokeWidth
     $ rotate r
     $ flipXAxis
     $ mkCircle size
@@ -248,24 +242,24 @@ coordEval val = V2 x y
   where (x, y) = fromPolarU val
 
 mkDot :: String -> V2 Double -> SVG
-mkDot color (V2 x y) = translate x y 
-  $ withStrokeWidth 0.01 
-  $ withFillOpacity 1 
-  $ withStrokeColor "blue" 
-  $ withFillColor color 
+mkDot color (V2 x y) = translate x y
+  $ withStrokeWidth globalStrokeWidth
+  $ withFillOpacity 1
+  $ withStrokeColor "blue"
+  $ withFillColor color
   $ mkCircle 0.03
 
 coordText :: V2 Double -> SVG
-coordText (V2 x y) = translate (x*1.8) (y*1.4) 
-  $ center 
-  $ scale 0.15 
-  $ outlinedText 
-  $ T.pack 
+coordText (V2 x y) = translate (x*1.8) (y*1.4)
+  $ center
+  $ scale textScale
+  $ outlinedText
+  $ T.pack
   $ printf "(%.3f\\ldots,%.3f\\ldots)" x y
 
 angleLine :: V2 Double -> SVG
-angleLine (V2 x y) = translate x y 
-  $ withStrokeWidth 0.01 
+angleLine (V2 x y) = translate x y
+  $ withStrokeWidth globalStrokeWidth
   $ mkLine (0,0) (-x,-y)
 
 outlinedText :: Text -> SVG
@@ -278,13 +272,13 @@ outlinedText txt = mkGroup
   ]
 
 angleText :: Double -> SVG
-angleText angle = translate 0.2 0.1 $ scale 0.15 
-  $ center 
+angleText ang = translate 0.2 0.1 $ scale 0.15
+  $ center
   $ withFillColor "black"
   $ withFillOpacity 1.0
-  $ latex 
+  $ latex
   $ T.pack
-  $ printf "%3.0f\\degree" angle
+  $ printf "%3.0f\\degree" ang
 
 fromDegrees :: Floating a => a -> a
 fromDegrees deg = deg * pi / 180
