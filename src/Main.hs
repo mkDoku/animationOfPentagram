@@ -35,16 +35,18 @@ main = reanimate
   --
   -- use ratio to stretch result to fit the 16/9 ratio of my display
   $ mapA (withViewBox (-xmin*ratio, -ymin, 4.5*ratio, ymin*2))
-  $ chainT seqA 
-    [ sceneOne
+  $ chainT seqA
+    [
+      sceneOne
     , sceneTwo
+--     sceneTwo
     ]
 
 
 sceneOne :: Animation
 sceneOne = scene $ do
     newSpriteSVG_ $ mkBackgroundPixel rtfdBackgroundColor
-    
+
     -- Create unit circle (r = 1.0)
     newSpriteSVG_ (withStrokeWidth 0.01 $ withStrokeColor "blue" $ mkCircle 1)
 
@@ -56,17 +58,17 @@ sceneOne = scene $ do
 
     -- Create variable for angle in polar coordinates
     dotAngle  <- newVar 0
-    
+
     -- Create dot, line and text for constant angle of 0
     newSpriteSVG_ $ angleLine $ coordEval 0
-    
+
     -- Create dot, line and text for variable angle
     newSprite_ $ angleLine . coordEval <$> unVar dotAngle
     redDot <- newSprite $ mkDot "red" . coordEval <$> unVar dotAngle
     spriteZ redDot 1
     newSprite_ $ angleText <$> unVar dotAngle
     newSprite_ $ coordText . coordEval <$> unVar dotAngle
-    
+
     wait 1
 
     let rotateDot a b = do
@@ -75,15 +77,15 @@ sceneOne = scene $ do
         fork $ tweenVar dotAngle 5 $ \_ t-> t*(b-a)+a
         -- newSpriteA and SyncStretch would stretch the circle to the
         -- life time of the whole scene
-        newSpriteA' SyncFreeze $ dymCircle a 0 (72/360)
-        
+        _ <- newSpriteA' SyncFreeze $ dymCircle a 0 (72/360)
+
         newDot <- newVar $ coordEval b
         newSprite_ $ mkDot "black" <$> unVar newDot
         newSprite_ $ coordText <$> unVar newDot
-        
+
         -- modify content of table by adding a new entry line to the table
         modifyVar currentTableText (++ coordToTableEntry b)
-        
+
         wait 1
 
     rotateDot 0 72
@@ -95,12 +97,111 @@ sceneOne = scene $ do
     wait 2
 
 sceneTwo :: Animation
-sceneTwo = scene $ do 
-  wait 1
- 
+sceneTwo = scene $ do
+
+    dymAngle <- newVar (0 :: Double)
+
+    -- helper function to create a dot using `mkDot` for a given angle
+    -- dymAngle ensures that the dot will adjust the coordinates accordingly
+    let createDot ang =    newSprite
+                        $  mkDot "blue" . coordEval . (+ ang)
+                       <$> unVar dymAngle
+
+    -- create a dot for each angle
+    -- store in `dots` for later use
+    dots <- mapM createDot [0, 72, 144, 216, 288]
+    mapM_ (`spriteZ` 1) dots
+
+
+    -- make table with five entries which are only dependent
+    -- on `dymAngle`
+    newSprite_ $ mkCompleteTable <$> unVar dymAngle
+
+    -- for nicer transition add pause/wait
+    wait 2
+
+    -- draw pentagram as animation
+    pentagramA <- newSpriteA' SyncFreeze  bla
+
+    -- this is just a hot fix!
+    -- destroy the pentagram animation and draw a
+    -- static pentagram at the same time
+    -- This second pentagram depends on `dymAngle`
+    --
+    -- To-do/elegant solution: initialize pentagramA with rotate + unVar dymAngle
+    fork $ destroySprite pentagramA
+    let pentagramSVG = frameAt 5 bla
+    newSprite_ $ flip rotate pentagramSVG <$> unVar dymAngle
+
+    -- for nicer transition add pause/wait
+    wait 1
+
+    -- vary dymAngle between 0 and 90 degrees
+    -- This should rotate `dots` and the pentagramSVG-sprite
+    tweenVar dymAngle 5 $ \_ t -> 90*t
+
+    -- for nicer transition add pause/wait
+    wait 0.5
+
+    -- destroy `dots` for final picture
+    mapM_ destroySprite  dots
+
+    -- wait some time to be able to digest the final result :)
+    wait 5
+
+-- bla `seqA` bla2 2 `andThen` (pause 2)
+
+bla = setDuration customDuration $
+  animate $ \t ->
+  partialSvg t $ pathify $ mkLinePathClosed anis
+  where
+    anis = transformCoord . coordEval <$> [ 0, 144, 288, 72, 216]
+
+bla2 x = setDuration x $
+       animate $ \t -> rotate (90*t) $ frameAt customDuration bla
+
+transformCoord (V2 x y) = (x,y)
+
+customDuration = 5
+
+animatePart coord1 coord2 = setDuration customDuration $
+  animate $ \t ->
+  partialSvg t $ pathify $ mkLine coord1 coord2
+
+
+
+mkCompleteTable :: Double -> SVG
+mkCompleteTable = translate 2.5 0.0
+  . withFillColor "black"
+  . withFillOpacity 1.0
+  . scale 0.15
+  . latex
+  . T.pack
+  . tableWithAngle
+
+tableWithAngle phi =
+   concat
+   [
+     "\\begin{tabular}{r|r|r}\n"
+   , "$\\phantom{0}\\varphi$"
+   , "&"
+   , "$x=\\sin(\\varphi)$"
+   , "&"
+   , "$y = \\cos(\\varphi)$"
+   , "\\\\"
+   , "\\hline"
+   , coordToTableEntry (phi + 0)
+   , coordToTableEntry (phi + 72)
+   , coordToTableEntry (phi + 144)
+   , coordToTableEntry (phi + 216)
+   , coordToTableEntry (phi + 288)
+   , "\\end{tabular}"
+   ]
+
+
 
 mkTableSVG :: String -> SVG
-mkTableSVG = translate 2.5 1.0 
+mkTableSVG = translate 2.5 0.0 
   . withFillColor "black"
   . withFillOpacity 1.0
   . scale 0.15 
