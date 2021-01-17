@@ -210,9 +210,9 @@ tableHeaderAnd x =
      "\\begin{tabular}{r|r|r}\n"
    , "$\\phantom{0}\\varphi$"
    , "&"
-   , "$x=\\sin(\\varphi)$"
+   , "$x=\\cos(\\varphi)$"
    , "&"
-   , "$y = \\cos(\\varphi)$"
+   , "$y = \\sin(\\varphi)$"
    , "\\\\"
    , "\\hline"
    , x
