@@ -195,11 +195,11 @@ tableWithAngle phi =
    tableHeaderAnd $
    concat
    [
-     coordToTableEntry (phi + 0)
-   , coordToTableEntry (phi + 72)
+     coordToTableEntry (phi + 72)
    , coordToTableEntry (phi + 144)
    , coordToTableEntry (phi + 216)
    , coordToTableEntry (phi + 288)
+   , coordToTableEntry (phi + 360)
    ]
 
 
